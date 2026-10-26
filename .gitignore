@@ -1,0 +1,11 @@
+.deps/
+build/
+src/ui.hpp
+ui/preview.html
+__pycache__/
+*.obj
+*.pdb
+*.ilk
+*.exe
+*.zip
+

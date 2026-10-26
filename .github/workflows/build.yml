@@ -1,0 +1,51 @@
+name: Build CyberLab
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test algorithms and standalone sources
+        shell: pwsh
+        run: ./test.ps1
+      - name: Build EXE
+        shell: pwsh
+        run: ./build.ps1
+      - name: Package release
+        shell: pwsh
+        run: |
+          git archive --format=zip --output=build/CyberLab-source.zip HEAD
+          $hash = (Get-FileHash build/CyberLab.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  CyberLab.exe" | Set-Content build/SHA256.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CyberLab-windows-x64
+          path: |
+            build/CyberLab.exe
+            build/CyberLab-source.zip
+            build/SHA256.txt
+      - name: Publish tagged version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:GITHUB_REF_NAME --title "CyberLab $env:GITHUB_REF_NAME" --generate-notes
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed.' }
+          }
+          gh release upload $env:GITHUB_REF_NAME build/CyberLab.exe build/CyberLab-source.zip build/SHA256.txt --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed.' }
